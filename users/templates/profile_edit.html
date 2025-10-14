@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Edit Profile | MockMate{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width:700px;">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h2 class="mb-3 text-primary">Edit Profile</h2>
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="full_name" class="form-label">Full name</label>
+          <input type="text" id="full_name" name="full_name" class="form-control" value="{{ profile.full_name }}">
+        </div>
+        <div class="mb-3">
+          <label for="role" class="form-label">Role</label>
+          <select id="role" name="role" class="form-select">
+            <option value="">Select role</option>
+            <option {% if profile.role == 'Backend Engineer' %}selected{% endif %}>Backend Engineer</option>
+            <option {% if profile.role == 'Frontend Engineer' %}selected{% endif %}>Frontend Engineer</option>
+            <option {% if profile.role == 'Full Stack Engineer' %}selected{% endif %}>Full Stack Engineer</option>
+            <option {% if profile.role == 'Data Scientist' %}selected{% endif %}>Data Scientist</option>
+            <option {% if profile.role == 'DevOps Engineer' %}selected{% endif %}>DevOps Engineer</option>
+            <option {% if profile.role == 'QA / SDET' %}selected{% endif %}>QA / SDET</option>
+            <option {% if profile.role == 'Product Manager' %}selected{% endif %}>Product Manager</option>
+            <option {% if profile.role == 'Other' %}selected{% endif %}>Other</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="years" class="form-label">Years of experience</label>
+          <input type="number" id="years" name="years" class="form-control" min="0" value="{{ profile.years_experience }}">
+        </div>
+        <button class="btn btn-primary">Save changes</button>
+        <a href="{% url 'profile' %}" class="btn btn-outline-secondary ms-2">Cancel</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

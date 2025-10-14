@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }} - Blog - MockMate{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h1>{{ post.title }}</h1>
+  <p class="text-muted">By {{ post.author.get_full_name|default:post.author.username }} on {{ post.created_at|date:"F j, Y" }}</p>
+  <div>
+    {{ post.content|linebreaks }}
+  </div>
+  <a href="{% url 'blog_list' %}" class="btn btn-primary mt-3">Back to Blog</a>
+</div>
+{% endblock %}

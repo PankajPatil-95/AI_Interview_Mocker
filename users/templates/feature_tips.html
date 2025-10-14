@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block title %}Expert Tips & Resources - MockMate{% endblock %}
+{% block content %}
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 mx-auto text-center">
+                <h1 class="display-4 fw-bold text-primary mb-4">Expert Tips & Resources</h1>
+                <p class="lead text-secondary mb-5">Access curated advice from industry professionals to enhance your interview preparation and career development.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="py-5 bg-white">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-10 mx-auto">
+                <h2 class="mb-4 text-primary">Comprehensive Resource Library</h2>
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title text-primary">Interview Strategies</h5>
+                                <p class="card-text">Learn proven techniques for different interview types, from behavioral to technical interviews.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title text-primary">Industry Insights</h5>
+                                <p class="card-text">Stay updated with current trends, salary expectations, and market demands in your field.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title text-primary">Career Development</h5>
+                                <p class="card-text">Guidance on resume optimization, LinkedIn networking, and professional growth strategies.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title text-primary">Success Stories</h5>
+                                <p class="card-text">Real experiences from professionals who landed their dream jobs using MockMate.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-10 mx-auto">
+                <h2 class="mb-4 text-primary text-center">Featured Tips</h2>
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title">STAR Method for Behavioral Questions</h5>
+                                <p class="card-text">Learn how to structure your answers using Situation, Task, Action, Result framework.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title">Body Language Essentials</h5>
+                                <p class="card-text">Master non-verbal communication to project confidence and professionalism.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title">Technical Interview Preparation</h5>
+                                <p class="card-text">Strategies for coding interviews, system design, and technical problem-solving.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="py-5 bg-white">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 mx-auto text-center">
+                <h2 class="mb-4 text-primary">Access Expert Resources</h2>
+                <p class="mb-4">Unlock your potential with professional guidance and industry-leading advice.</p>
+                {% if user.is_authenticated %}
+                    <a href="/dashboard/" class="btn btn-primary btn-lg px-4">Go to Dashboard</a>
+                {% else %}
+                    <a href="/signup/" class="btn btn-primary btn-lg px-4">Get Started</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

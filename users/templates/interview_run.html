@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Run Interview{% endblock %}
+{% block content %}
+<div class="container py-5">
+	<div class="row justify-content-center">
+		{% if webcam_enabled %}
+		<div class="col-lg-6">
+		{% else %}
+		<div class="col-lg-8">
+		{% endif %}
+			<div class="card shadow-lg border-0">
+				<div class="card-body p-4">
+					<h2 class="mb-4 text-primary fw-bold text-center">Interview Session</h2>
+					<div class="progress mb-4">
+						{% widthratio current_idx total 100 as progress_width %}
+						<div class="progress-bar bg-primary" role="progressbar" style="width: {{ progress_width }}%;"
+							aria-valuenow="{{ current_idx|add:1 }}" aria-valuemin="0" aria-valuemax="{{ total }}">
+							Question {{ current_idx|add:1 }} of {{ total }}
+						</div>
+					</div>
+					<div id="question-box" class="mb-4">
+						<h4 class="fw-semibold" id="question-text">{{ question }}</h4>
+					</div>
+					<form method="post" action="" autocomplete="off">
+						{% csrf_token %}
+						<input type="hidden" id="audio_blob" name="audio_blob">
+						<input type="hidden" id="webcam_frames" name="webcam_frames">
+						{% if not pure_voice %}
+						<div class="mb-3">
+							<label for="answer" class="form-label fw-semibold">Your Answer</label>
+							<textarea class="form-control" id="answer" name="answer" rows="4" placeholder="{% if mode == 'voice' %}Speak or type your answer here...{% else %}Type your answer here...{% endif %}" required></textarea>
+							<div class="mt-2">
+								{% if mode == 'voice' %}
+								<button type="button" class="btn btn-info" id="record-btn"><i class="bi bi-mic-fill me-2"></i>Record Answer</button>
+								<button type="button" class="btn btn-secondary" id="stop-btn" style="display: none;"><i class="bi bi-stop-fill me-2"></i>Stop Recording</button>
+								{% endif %}
+								<span id="feedback-box" class="ms-3 text-success"></span>
+							</div>
+						</div>
+						{% else %}
+						<div class="mb-3 text-center">
+							<div class="alert alert-info">
+								<i class="bi bi-mic-fill me-2"></i>Voice Mode: Record your answer using the buttons below. Webcam captures will be analyzed for confidence.
+							</div>
+							<div class="d-flex justify-content-center gap-3 mb-3">
+								<button type="button" class="btn btn-success btn-lg" id="start-record-btn"><i class="bi bi-record-circle-fill me-2"></i>Start Recording</button>
+								<button type="button" class="btn btn-danger btn-lg" id="stop-record-btn" style="display: none;"><i class="bi bi-stop-circle-fill me-2"></i>Stop Recording</button>
+							</div>
+							<div id="recording-indicator" class="text-danger fw-bold" style="display: none;">
+								<i class="bi bi-record-circle-fill me-2"></i>Recording... <span id="timer">00:00</span>
+							</div>
+							<div id="captured-frames" class="mt-3" style="display: none;">
+								<small class="text-muted">Captured frames for analysis:</small>
+								<div id="frames-preview" class="d-flex justify-content-center gap-2 mt-2"></div>
+							</div>
+						</div>
+						{% endif %}
+						<div class="d-flex justify-content-center">
+							<button type="submit" class="btn btn-primary px-5 py-2"><i class="bi bi-check-circle me-2"></i>Submit Answer & Next Question</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+		{% if webcam_enabled %}
+		<div class="col-lg-4">
+			<div class="card shadow-lg border-0">
+				<div class="card-body p-4 text-center">
+					<h5 class="mb-3 text-primary fw-bold">Webcam Feed</h5>
+					<video id="webcam" autoplay muted style="width: 100%; border-radius: 10px;"></video>
+					<canvas id="canvas" style="display: none;"></canvas>
+					<p class="mt-2 text-muted small">Your webcam is active for confidence analysis.</p>
+				</div>
+			</div>
+		</div>
+		{% endif %}
+	</div>
+</div>
+<script>
+let mediaRecorder;
+let recordedChunks = [];
+let webcamStream;
+let captureInterval;
+let capturedFrames = [];
+let timerInterval;
+let seconds = 0;
+
+{% if webcam_enabled %}
+navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+	webcamStream = stream;
+	document.getElementById('webcam').srcObject = stream;
+}).catch(function(err) {
+	console.log('Error accessing webcam: ' + err);
+});
+{% endif %}
+
+{% if pure_voice %}
+// Pure voice mode: MediaRecorder for audio
+document.getElementById('start-record-btn').addEventListener('click', function() {
+	navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+		mediaRecorder = new MediaRecorder(stream);
+		recordedChunks = [];
+		mediaRecorder.ondataavailable = function(event) {
+			if (event.data.size > 0) {
+				recordedChunks.push(event.data);
+			}
+		};
+		mediaRecorder.onstop = function() {
+			const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+			const reader = new FileReader();
+			reader.onloadend = function() {
+				document.getElementById('audio_blob').value = reader.result;
+			};
+			reader.readAsDataURL(blob);
+		};
+		mediaRecorder.start();
+		document.getElementById('start-record-btn').style.display = 'none';
+		document.getElementById('stop-record-btn').style.display = 'inline-block';
+		document.getElementById('recording-indicator').style.display = 'block';
+		seconds = 0;
+		timerInterval = setInterval(function() {
+			seconds++;
+			document.getElementById('timer').textContent = Math.floor(seconds / 60).toString().padStart(2, '0') + ':' + (seconds % 60).toString().padStart(2, '0');
+		}, 1000);
+		{% if webcam_enabled %}
+		capturedFrames = [];
+		document.getElementById('frames-preview').innerHTML = '';
+		document.getElementById('captured-frames').style.display = 'block';
+		captureInterval = setInterval(function() {
+			const canvas = document.getElementById('canvas');
+			const video = document.getElementById('webcam');
+			canvas.width = video.videoWidth;
+			canvas.height = video.videoHeight;
+			const ctx = canvas.getContext('2d');
+			ctx.drawImage(video, 0, 0);
+			const frameData = canvas.toDataURL('image/jpeg');
+			capturedFrames.push(frameData);
+			// Preview
+			const img = document.createElement('img');
+			img.src = frameData;
+			img.style.width = '50px';
+			img.style.height = '50px';
+			img.style.borderRadius = '5px';
+			document.getElementById('frames-preview').appendChild(img);
+		}, 5000); // Every 5 seconds
+		{% endif %}
+	}).catch(function(err) {
+		alert('Error accessing microphone: ' + err);
+	});
+});
+
+document.getElementById('stop-record-btn').addEventListener('click', function() {
+	if (mediaRecorder) {
+		mediaRecorder.stop();
+		mediaRecorder.stream.getTracks().forEach(track => track.stop());
+	}
+	document.getElementById('start-record-btn').style.display = 'inline-block';
+	document.getElementById('stop-record-btn').style.display = 'none';
+	document.getElementById('recording-indicator').style.display = 'none';
+	clearInterval(timerInterval);
+	{% if webcam_enabled %}
+	clearInterval(captureInterval);
+	document.getElementById('webcam_frames').value = JSON.stringify(capturedFrames);
+	{% endif %}
+});
+{% else %}
+// Non-pure voice mode: Speech recognition
+{% if mode == 'voice' %}
+let recognition;
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+	const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+	recognition = new SpeechRecognition();
+	recognition.continuous = false;
+	recognition.interimResults = false;
+	recognition.lang = 'en-US';
+
+	recognition.onresult = function(event) {
+		const transcript = event.results[0][0].transcript;
+		document.getElementById('answer').value += transcript;
+	};
+
+	recognition.onend = function() {
+		document.getElementById('record-btn').style.display = 'inline-block';
+		document.getElementById('stop-btn').style.display = 'none';
+	};
+
+	document.getElementById('record-btn').addEventListener('click', function() {
+		recognition.start();
+		this.style.display = 'none';
+		document.getElementById('stop-btn').style.display = 'inline-block';
+	});
+
+	document.getElementById('stop-btn').addEventListener('click', function() {
+		recognition.stop();
+	});
+} else {
+	document.getElementById('record-btn').disabled = true;
+	document.getElementById('record-btn').textContent = 'Speech recognition not supported';
+}
+{% endif %}
+{% endif %}
+
+document.querySelector('form').onsubmit = function(e) {
+	{% if not pure_voice %}
+	let answer = document.getElementById('answer').value;
+	let feedback = '';
+	if (answer.length > 20) {
+		feedback = 'Good, detailed answer!';
+	} else if (answer.length > 0) {
+		feedback = 'Try to elaborate more for a stronger response.';
+	} else {
+		feedback = 'Please provide an answer.';
+	}
+	document.getElementById('feedback-box').textContent = feedback;
+	{% endif %}
+	// Form will submit to backend for next question
+};
+</script>
+{% endblock %}

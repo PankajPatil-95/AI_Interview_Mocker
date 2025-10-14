@@ -1,0 +1,33 @@
+t{% extends 'base.html' %}
+{% block title %}Login | MockMate{% endblock %}
+{% block content %}
+<div class="container" style="max-width: 400px;">
+  <div class="card shadow-sm mt-5">
+    <div class="card-body">
+      <h2 class="mb-4 text-primary text-center">Login to MockMate</h2>
+      {% if messages %}
+      <div>
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="email" class="form-label fw-semibold">Email address</label>
+          <input type="email" class="form-control" id="email" name="email" placeholder="you@example.com" required autofocus>
+        </div>
+        <div class="mb-4">
+          <label for="password" class="form-label fw-semibold">Password</label>
+          <input type="password" class="form-control" id="password" name="password" placeholder="********" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 fw-bold">Login</button>
+      </form>
+      <div class="mt-3 text-center">
+        <span>Don't have an account?</span> <a href="{% url 'signup' %}" class="text-primary fw-bold">Sign Up</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

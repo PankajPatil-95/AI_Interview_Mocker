@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+{% block title %}Interview Results{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <h2 class="mb-4 text-primary fw-bold text-center">Your Interview Results</h2>
+            {% for result in results %}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{{ result.role }} Interview - {{ result.created_at|date:"M d, Y" }}</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Name:</strong> {{ result.name }}</p>
+                    <p><strong>Experience:</strong> {{ result.experience }} years</p>
+                    <p><strong>Interview Type:</strong> {{ result.interview_type|title }}</p>
+                    <p><strong>Mode:</strong> {{ result.mode|title }}</p>
+                    <p><strong>Webcam Enabled:</strong> {% if result.webcam_enabled %}Yes{% else %}No{% endif %}</p>
+                    <h6>Questions and Answers:</h6>
+                    <ul>
+                        {% for i in result.questions %}
+                        <li><strong>Q{{ forloop.counter }}:</strong> {{ i }}</li>
+                        <li><strong>A{{ forloop.counter }}:</strong> {{ result.answers|index:forloop.counter0 }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% if result.voice_transcripts %}
+                    <h6>Voice Analysis:</h6>
+                    <div class="alert alert-info">
+                        <p><strong>Transcripts:</strong></p>
+                        <ul>
+                            {% for transcript in result.voice_transcripts %}
+                            <li>{{ transcript }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    {% if result.interaction_feedback %}
+                    <h6>Confidence Insights:</h6>
+                    <div class="alert alert-success">
+                        <p>{{ result.interaction_feedback|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+                    <h6>Overall AI Feedback:</h6>
+                    <p>{{ result.ai_feedback|linebreaks }}</p>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-center">No interview results yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

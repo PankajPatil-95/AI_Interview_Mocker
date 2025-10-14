@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard | MockMate{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 900px;">
+  <div class="mb-4 text-center">
+    <h1 class="text-primary fw-bold">Welcome, {{ profile.full_name|default:user.username }}!</h1>
+    <p class="lead">Your personalized interview dashboard</p>
+    <div class="small text-muted">
+      {% if profile %}
+        Role: {{ profile.role|default:'—' }} &middot; Experience: {{ profile.years_experience|default:'—' }} years
+      {% else %}
+        No profile details available.
+      {% endif %}
+    </div>
+  </div>
+  <div class="row g-4 mb-4">
+    <div class="col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Start a Mock Interview</h5>
+          <p class="card-text">Practice with AI-generated questions and get instant feedback.</p>
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#startInterviewModal">Start Interview</button>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">View Results</h5>
+          <p class="card-text">Review your interview performance and feedback.</p>
+          <a href="/results" class="btn btn-primary">View Results</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Start Interview Modal -->
+  <div class="modal fade" id="startInterviewModal" tabindex="-1" aria-labelledby="startInterviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <form method="post" action="/mock-interview/">
+          {% csrf_token %}
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title" id="startInterviewModalLabel"><i class="bi bi-play-circle-fill me-2"></i>Configure Mock Interview</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted mb-4">Configure your mock interview session to generate personalized AI-powered questions tailored to your role and experience.</p>
+            <div class="mb-3">
+              <label for="interviewName" class="form-label fw-semibold"><i class="bi bi-person-fill me-2 text-primary"></i>Your Name</label>
+              <input type="text" class="form-control" id="interviewName" name="name" value="{{ profile.full_name|default:user.username }}" required>
+            </div>
+            <div class="mb-3">
+              <label for="interviewRole" class="form-label fw-semibold"><i class="bi bi-briefcase-fill me-2 text-primary"></i>Role/Position</label>
+              <select class="form-select" id="interviewRole" name="role" required>
+                <option value="">Select role</option>
+                <option {% if profile and profile.role == 'Backend Engineer' %}selected{% endif %}>Backend Engineer</option>
+                <option {% if profile and profile.role == 'Frontend Engineer' %}selected{% endif %}>Frontend Engineer</option>
+                <option {% if profile and profile.role == 'Full Stack Engineer' %}selected{% endif %}>Full Stack Engineer</option>
+                <option {% if profile and profile.role == 'Data Scientist' %}selected{% endif %}>Data Scientist</option>
+                <option {% if profile and profile.role == 'DevOps Engineer' %}selected{% endif %}>DevOps Engineer</option>
+                <option {% if profile and profile.role == 'QA / SDET' %}selected{% endif %}>QA / SDET</option>
+                <option {% if profile and profile.role == 'Product Manager' %}selected{% endif %}>Product Manager</option>
+                <option {% if profile and profile.role == 'Other' %}selected{% endif %}>Other</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="interviewExp" class="form-label fw-semibold"><i class="bi bi-clock-fill me-2 text-primary"></i>Experience (years)</label>
+              <input type="number" class="form-control" id="interviewExp" name="experience" value="{{ profile.years_experience|default:'' }}" min="0" max="50" required>
+            </div>
+            <div class="mb-3">
+              <label for="interviewType" class="form-label fw-semibold"><i class="bi bi-tags-fill me-2 text-primary"></i>Interview Type</label>
+              <select class="form-select" id="interviewType" name="interview_type" required>
+                <option value="">Select type</option>
+                <option value="technical">Technical</option>
+                <option value="behavioral">Behavioral</option>
+                <option value="mixed">Mixed</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="interviewMode" class="form-label fw-semibold"><i class="bi bi-chat-dots-fill me-2 text-primary"></i>Interview Mode</label>
+              <select class="form-select" id="interviewMode" name="mode" required>
+                <option value="">Select mode</option>
+                <option value="text">Text</option>
+                <option value="voice">Voice</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary px-4"><i class="bi bi-rocket-takeoff me-2"></i>Start Interview</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="row g-4">
+    <div class="col-md-12">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Recent Interviews</h5>
+          <ul class="list-group list-group-flush">
+            {% for interview in recent_activity %}
+            <li class="list-group-item">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <strong>{{ interview.role }}</strong> - {{ interview.interview_type|title }} Interview<br>
+                  <small class="text-muted">{{ interview.created_at|date:"M d, Y H:i" }}</small>
+                </div>
+                <a href="/results" class="btn btn-sm btn-outline-primary">View</a>
+              </div>
+            </li>
+            {% empty %}
+            <li class="list-group-item text-muted">No recent interviews yet.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+{% endblock %}

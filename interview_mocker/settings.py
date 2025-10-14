@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -33,12 +34,15 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     # Django built-in apps
+
+    
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',   # ✅ REQUIRED
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
 
     # Third-party apps
     'rest_framework',
@@ -47,9 +51,9 @@ INSTALLED_APPS = [
     # Your apps
     'users',
     'companies',
-    'interviews',
     'feedback',
     'core',
+    'blog',
 ]
 
 
@@ -70,7 +74,7 @@ ROOT_URLCONF = 'interview_mocker.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -94,6 +98,7 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
 
 
 # Password validation
@@ -136,10 +141,16 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Gemini API Key
+GEMINI_API_KEY = 'AIzaSyBJ_j-unf-LxhLBhwQQzXBu0EoN1yFPCRU'
+
 #edited
-AUTH_USER_MODEL = "users.User"
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ),
-}
+
+
+
+
+
+
+
+

@@ -1,0 +1,102 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}MockMate{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="{% static 'style.css' %}">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-2">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center" href="/">
+        <span style="display:inline-block; margin-right:12px;">
+          <svg width="48" height="48" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle; filter:drop-shadow(0 2px 8px rgba(30,64,175,0.18));">
+            <rect x="8" y="16" width="48" height="32" rx="10" fill="#1976d2" stroke="#1565c0" stroke-width="3" />
+            <ellipse cx="32" cy="32" rx="16" ry="10" fill="#fff" />
+            <circle cx="24" cy="32" r="2.5" fill="#1976d2" />
+            <circle cx="32" cy="32" r="2.5" fill="#1976d2" />
+            <circle cx="40" cy="32" r="2.5" fill="#1976d2" />
+            <path d="M16 48 Q32 56 48 48" stroke="#1565c0" stroke-width="2" fill="none" />
+            <line x1="32" y1="42" x2="32" y2="54" stroke="#1565c0" stroke-width="2" />
+            <circle cx="32" cy="56" r="2" fill="#1976d2" />
+          </svg>
+        </span>
+        <span class="fw-bold text-primary fs-3" style="letter-spacing:1px;">MockMate</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center">
+          <li class="nav-item mx-2">
+            <a class="nav-link fw-bold {% if request.path == '/' %}active text-primary border-bottom border-primary{% endif %}" href="/">
+              <i class="bi bi-house-door-fill me-1"></i> Home
+            </a>
+          </li>
+          {% if user.is_authenticated %}
+          <li class="nav-item mx-2">
+            <a class="nav-link fw-bold {% if request.path == '/dashboard/' %}active text-primary border-bottom border-primary{% endif %}" href="/dashboard/">
+              <i class="bi bi-speedometer2 me-1"></i> Dashboard
+            </a>
+          </li>
+          {% endif %}
+          <li class="nav-item mx-2">
+            <a class="nav-link fw-bold {% if request.path == '/faq/' %}active text-primary border-bottom border-primary{% endif %}" href="/faq/">
+              <i class="bi bi-question-circle-fill me-1"></i> FAQ
+            </a>
+          </li>
+          <li class="nav-item mx-2">
+            <a class="nav-link fw-bold {% if request.path == '/testimonial/' %}active text-primary border-bottom border-primary{% endif %}" href="/testimonial/">
+              <i class="bi bi-chat-dots-fill me-1"></i> Testimonials
+            </a>
+          </li>
+          <li class="nav-item mx-2">
+            <a class="nav-link fw-bold {% if request.path == '/blog/' %}active text-primary border-bottom border-primary{% endif %}" href="/blog/">
+              <i class="bi bi-journal-text me-1"></i> Blog
+            </a>
+          </li>
+          {% if user.is_authenticated %}
+          <li class="nav-item dropdown mx-2">
+            <a class="nav-link dropdown-toggle fw-bold text-primary" href="#" id="navbarProfile" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-person-circle me-1"></i> {{ user.first_name|default:user.username }}
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarProfile">
+              <li><a class="dropdown-item" href="{% url 'profile' %}">Profile</a></li>
+              <li><a class="dropdown-item" href="{% url 'logout' %}">Logout</a></li>
+            </ul>
+          </li>
+          {% else %}
+          <li class="nav-item mx-2">
+            <a class="nav-link fw-bold px-3 py-2 rounded bg-primary text-white ms-2 {% if request.path == '/signup/' %}active border-bottom border-white{% endif %}" style="min-width:48px; text-align:center;" href="/signup/">
+              <i class="bi bi-person-plus-fill me-1"></i> Sign Up
+            </a>
+          </li>
+          <!-- Login button removed per user request -->
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </nav>
+  <main style="padding-top: 70px;">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="bg-primary text-white mt-5 py-4">
+    <div class="container text-center">
+      <div class="mb-2">
+        <span class="fw-bold fs-5">MockMate</span> &mdash; AI Interview Mocker
+      </div>
+      <div class="mb-2">
+        <a href="/faq/" class="text-white text-decoration-underline mx-2">FAQ</a>
+        <a href="/testimonial/" class="text-white text-decoration-underline mx-2">Testimonials</a>
+        <a href="/signup/" class="text-white text-decoration-underline mx-2">Sign Up</a>
+      </div>
+      <div class="small">&copy; {{ now|default:2025 }} MockMate. All rights reserved.</div>
+    </div>
+  </footer>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

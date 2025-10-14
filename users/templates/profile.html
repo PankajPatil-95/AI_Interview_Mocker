@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}My Profile | MockMate{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width:700px;">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h2 class="mb-3 text-primary">My Profile</h2>
+      {% if profile %}
+      <dl class="row">
+        <dt class="col-sm-3">Full name</dt>
+        <dd class="col-sm-9">{{ profile.full_name|default:user.username }}</dd>
+
+        <dt class="col-sm-3">Email</dt>
+        <dd class="col-sm-9">{{ user.email }}</dd>
+
+        <dt class="col-sm-3">Role</dt>
+        <dd class="col-sm-9">{{ profile.role|default:'—' }}</dd>
+
+        <dt class="col-sm-3">Years experience</dt>
+        <dd class="col-sm-9">{{ profile.years_experience|default:'—' }}</dd>
+
+        <dt class="col-sm-3">Member since</dt>
+        <dd class="col-sm-9">{{ profile.created_at|date:"F j, Y"|default:'—' }}</dd>
+      </dl>
+  <a href="{% url 'profile_edit' %}" class="btn btn-primary me-2">Edit profile</a>
+  <a href="/dashboard/" class="btn btn-secondary">Back to Dashboard</a>
+      {% else %}
+      <p class="text-muted">No profile information is available.</p>
+      <a href="/dashboard/" class="btn btn-secondary">Back to Dashboard</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

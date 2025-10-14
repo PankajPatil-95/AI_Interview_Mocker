@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Sign Up | MockMate{% endblock %}
+{% block content %}
+<div class="container" style="max-width: 480px;">
+  <div class="card shadow-sm mt-5">
+    <div class="card-body">
+      <h2 class="mb-4 text-primary text-center">Create an Account</h2>
+      {% if messages %}
+      <div>
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="name" class="form-label fw-semibold">Full Name</label>
+          <input type="text" class="form-control" id="name" name="name" placeholder="John Doe" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label for="email" class="form-label fw-semibold">Email address</label>
+          <input type="email" class="form-control" id="email" name="email" placeholder="you@example.com" required>
+        </div>
+        <div class="mb-3">
+          <label for="role" class="form-label fw-semibold">Target Role</label>
+          <select class="form-select" id="role" name="role">
+            <option value="">Select target role</option>
+            <option>Backend Engineer</option>
+            <option>Frontend Engineer</option>
+            <option>Full Stack Engineer</option>
+            <option>Data Scientist</option>
+            <option>DevOps Engineer</option>
+            <option>QA / SDET</option>
+            <option>Product Manager</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="years" class="form-label fw-semibold">Years of Experience</label>
+          <input type="number" min="0" class="form-control" id="years" name="years" placeholder="0">
+        </div>
+        <div class="mb-4">
+          <label for="password" class="form-label fw-semibold">Password</label>
+          <input type="password" class="form-control" id="password" name="password" placeholder="********" required>
+        </div>
+        <button type="submit" class="btn btn-warning w-100 fw-bold">Sign Up</button>
+      </form>
+      <div class="mt-3 text-center">
+        <span>Already have an account?</span> <a href="{% url 'login' %}" class="text-primary fw-bold">Login</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
