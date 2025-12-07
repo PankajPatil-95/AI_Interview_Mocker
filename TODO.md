@@ -1,7 +1,10 @@
-# TODO List for Making Testimonials Realtime
+# TODO: Remove Raw Media Storage
 
-- [x] Add Testimonial model to users app
-- [x] Run migrations
-- [x] Create testimonial entries for the specified authors
-- [x] Modify home view to fetch testimonials and pass to template
-- [x] Update index.html to display testimonials dynamically
+- [ ] Remove audio_file and video_frames_zip fields from InterviewResult model in feedback/models.py
+- [ ] Remove QuestionAudio model entirely from feedback/models.py
+- [ ] Create new migration to remove the fields and model
+- [ ] Update users/views.py to remove file storage code, keep real-time transcription
+- [ ] Check and update any admin or template references
+- [ ] Run migrations
+- [ ] Test interview flow
+- [ ] Update docs if needed

@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import home, login_view, signup_view, logout_view, dashboard, faq, testimonial, profile_view, profile_edit, mock_interview_view, interview_run_view, results_view, stats_view, feature_mock_interviews, feature_feedback, feature_tips
+from .views import home, login_view, signup_view, logout_view, dashboard, faq, testimonial, profile_view, profile_edit, mock_interview_view, interview_run_view, results_view, stats_view, feature_mock_interviews, feature_feedback, feature_tips, result_detail_view, download_interview_media, upload_question_clip
 
 urlpatterns = [
     path('', home, name='home'),
@@ -13,7 +13,10 @@ urlpatterns = [
     path('testimonial/', testimonial, name='testimonial'),
     path('mock-interview/', mock_interview_view, name='mock_interview'),
     path('interview-run/', interview_run_view, name='interview_run'),
+    path('interview-run/upload-clip/', upload_question_clip, name='upload_question_clip'),
     path('results/', results_view, name='results'),
+    path('results/<int:pk>/', result_detail_view, name='result_detail'),
+
     path('stats/', stats_view, name='stats'),
     path('features/mock-interviews/', feature_mock_interviews, name='feature_mock_interviews'),
     path('features/feedback/', feature_feedback, name='feature_feedback'),

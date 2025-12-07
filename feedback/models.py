@@ -14,7 +14,11 @@ class InterviewResult(models.Model):
     voice_transcripts = models.JSONField(null=True, blank=True)  # For voice mode
     interaction_feedback = models.TextField(null=True, blank=True)  # From webcam analysis
     ai_feedback = models.TextField()
+    # Audio and video are processed in real-time and are not stored.
+    overall_score = models.IntegerField(null=True, blank=True)
+    grade_label = models.CharField(max_length=20, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.user.username} - {self.role} Interview"
+
