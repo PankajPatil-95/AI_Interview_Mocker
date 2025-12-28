@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% block title %}Interview Feedback{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-lg">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Interview Feedback</h3>
+                </div>
+                <div class="card-body">
+                    <!-- Interview Details -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>Interview Details</h5>
+                            <p><strong>Name:</strong> {{ result.name }}</p>
+                            <p><strong>Role:</strong> {{ result.role }}</p>
+                            <p><strong>Experience:</strong> {{ result.experience }} years</p>
+                            <p><strong>Type:</strong> {{ result.interview_type|title }}</p>
+                            <p><strong>Mode:</strong> {{ result.mode|title }}</p>
+                            <p><strong>Date:</strong> {{ result.created_at|date:"M d, Y H:i" }}</p>
+                        </div>
+                        <div class="col-md-6 text-center">
+                            {% if result.overall_score %}
+                                <div class="mb-3">
+                                    <h4 class="text-primary">Overall Score</h4>
+                                    <div class="display-4 fw-bold text-success">{{ result.overall_score }}%</div>
+                                    {% if result.grade_label %}
+                                        <span class="badge fs-5 bg-info">{{ result.grade_label }}</span>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if feedback %}
+                        {% if feedback.error %}
+                            <div class="alert alert-danger">
+                                <h5>Error Loading Feedback</h5>
+                                <p>{{ feedback.error }}</p>
+                            </div>
+                        {% else %}
+                            <!-- Summary -->
+                            {% if feedback.summary %}
+                                <div class="mb-4">
+                                    <h5>Summary</h5>
+                                    <p class="lead">{{ feedback.summary }}</p>
+                                </div>
+                            {% endif %}
+
+                            <!-- Strengths -->
+                            {% if feedback.strengths %}
+                                <div class="mb-4">
+                                    <h5 class="text-success">Strengths</h5>
+                                    <ul class="list-group">
+                                        {% for strength in feedback.strengths %}
+                                            <li class="list-group-item">
+                                                <i class="bi bi-check-circle-fill text-success me-2"></i>{{ strength }}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+
+                            <!-- Weaknesses -->
+                            {% if feedback.weaknesses %}
+                                <div class="mb-4">
+                                    <h5 class="text-warning">Areas for Improvement</h5>
+                                    <ul class="list-group">
+                                        {% for weakness in feedback.weaknesses %}
+                                            <li class="list-group-item">
+                                                <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>{{ weakness }}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+
+                            <!-- Suggestions -->
+                            {% if feedback.suggestions %}
+                                <div class="mb-4">
+                                    <h5 class="text-info">Suggestions</h5>
+                                    <ul class="list-group">
+                                        {% for suggestion in feedback.suggestions %}
+                                            <li class="list-group-item">
+                                                <i class="bi bi-lightbulb-fill text-info me-2"></i>{{ suggestion }}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+
+                            <!-- Question-by-Question Feedback -->
+                            {% if feedback.questions %}
+                                <div class="mb-4">
+                                    <h5>Question-by-Question Analysis</h5>
+                                    {% for q_feedback in feedback.questions %}
+                                        <div class="card mb-3">
+                                            <div class="card-header">
+                                                <strong>Question {{ forloop.counter }}:</strong> {{ q_feedback.question }}
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="row">
+                                                    <div class="col-md-8">
+                                                        <h6>Your Answer:</h6>
+                                                        <p class="text-muted">{{ q_feedback.answer|truncatechars:300 }}</p>
+                                                        {% if q_feedback.feedback %}
+                                                            <h6>Feedback:</h6>
+                                                            <p>{{ q_feedback.feedback }}</p>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div class="col-md-4 text-center">
+                                                        {% if q_feedback.score %}
+                                                            <div class="mb-2">
+                                                                <span class="badge bg-primary fs-6">Score: {{ q_feedback.score }}/100</span>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <h5>No Feedback Available</h5>
+                            <p>Feedback data could not be loaded for this interview.</p>
+                        </div>
+                    {% endif %}
+
+                    <!-- Raw AI Feedback (for debugging) -->
+                    {% if result.ai_feedback %}
+                        <details class="mt-4">
+                            <summary class="text-muted">Raw AI Feedback (JSON)</summary>
+                            <pre class="bg-light p-3 rounded">{{ result.ai_feedback }}</pre>
+                        </details>
+                    {% endif %}
+                </div>
+                <div class="card-footer text-center">
+                    <a href="{% url 'results' %}" class="btn btn-primary">Back to Results</a>
+                    <a href="{% url 'dashboard' %}" class="btn btn-secondary">Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

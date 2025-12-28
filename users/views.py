@@ -5,11 +5,19 @@ from django.contrib.auth.models import User
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
 from .models import Profile
-import google.generativeai as genai
-import base64
+from .serializers_clean import (
+    InterviewStartSerializer,
+    InterviewStartResponseSerializer,
+    InterviewFeedbackSerializer,
+    InterviewFeedbackResponseSerializer
+)
+from .services.mistral_service import get_mistral_service
 import json
-import time
+import base64
 
 def home(request):
     context = {}
@@ -85,13 +93,11 @@ def faq(request):
 def testimonial(request):
     return render(request, 'testimonial.html')
 
-
 @login_required
 def profile_view(request):
     """Show the logged-in user's profile details."""
     profile = getattr(request.user, 'profile', None)
     return render(request, 'profile.html', {'profile': profile, 'user': request.user})
-
 
 @login_required
 def profile_edit(request):
@@ -123,6 +129,14 @@ def profile_edit(request):
 
 @login_required
 def mock_interview_view(request):
+    # Map experience levels to numeric values
+    experience_mapping = {
+        "Fresher": 0,
+        "Junior": 1,
+        "Mid": 3,
+        "Senior": 5
+    }
+
     if request.method == 'POST':
         name = request.POST.get('name')
         role = request.POST.get('role')
@@ -130,71 +144,86 @@ def mock_interview_view(request):
         interview_type = request.POST.get('interview_type')
         mode = request.POST.get('mode')
         webcam_enabled = (mode == 'voice')
+
         if not all([name, role, experience, interview_type, mode]):
             messages.error(request, 'All fields are required.')
             return redirect('dashboard')
+
+        # Convert experience to numeric value
+        experience_numeric = experience_mapping.get(experience, None)
+        if experience_numeric is None:
+            messages.error(request, 'Invalid experience level provided.')
+            return redirect('dashboard')
+
         profile = getattr(request.user, 'profile', None)
         if profile:
             profile.full_name = name
             profile.role = role
-            profile.years_experience = int(experience)
+            profile.years_experience = experience_numeric
             profile.save()
-        from .gemini_utils import generate_interview_questions
-        import random
-        random_seed = random.randint(1, 10000)
-        
+
         try:
-            print(f"Generating questions for {role} position, {experience} years, type: {interview_type}")
-            questions = generate_interview_questions(role, experience, interview_type, random_seed)
-            
+            print(f"Generating static questions for {role} position, {experience} years, type: {interview_type}")
+            questions = generate_fallback_questions(role, experience_numeric, interview_type)
+
             if not questions or len(questions) < 5:
                 messages.error(request, 'Failed to generate enough interview questions. Please try again.')
                 return redirect('dashboard')
-            
+
             print(f"Successfully generated {len(questions)} questions")
             messages.success(request, 'Interview questions generated successfully!')
-            
+
         except Exception as e:
             error_msg = str(e)
             print(f"Error generating questions: {error_msg}")
-            
-            if 'quota' in error_msg.lower():
-                messages.error(request, 'API quota exceeded. Please try again later.')
-            elif 'permission' in error_msg.lower() or 'unauthorized' in error_msg.lower():
-                messages.error(request, 'API access error. Please verify your API key.')
-            elif 'model' in error_msg.lower() and 'not found' in error_msg.lower():
-                messages.error(request, 'AI model configuration error. Please contact support.')
-            else:
-                messages.error(request, 'An error occurred while generating questions. Please try again.')
-            
+            messages.error(request, 'An error occurred while generating questions. Please try again.')
             return redirect('dashboard')
+
         request.session['interview_questions'] = questions
         request.session['current_question_idx'] = 0
         request.session['interview_answers'] = []
         request.session['voice_transcripts'] = []
         request.session['interaction_feedbacks'] = []
-        request.session['interview_data'] = {'name': name, 'role': role, 'experience': experience, 'interview_type': interview_type, 'mode': mode, 'webcam_enabled': webcam_enabled, 'pure_voice': mode == 'voice'}
+        request.session['interview_data'] = {
+            'name': name,
+            'role': role,
+            'experience': experience,
+            'interview_type': interview_type,
+            'mode': mode,
+            'webcam_enabled': webcam_enabled,
+            'pure_voice': mode == 'voice'
+        }
         return redirect('interview_run')
+
     return redirect('dashboard')
 
 @login_required
 def interview_run_view(request):
+    from feedback.models import InterviewResult
+
     questions = request.session.get('interview_questions', [])
     idx = request.session.get('current_question_idx', 0)
     answers = request.session.get('interview_answers', [])
     interview_data = request.session.get('interview_data', {})
     mode = interview_data.get('mode', 'text')
     webcam_enabled = interview_data.get('webcam_enabled', False)
-    question_audios = request.session.get('question_audios', {})  # Store per-question audio blobs
-    
+    question_audios = request.session.get('question_audios', {})
+
+    # Map experience levels to numeric values
+    experience_mapping = {
+        "Junior": 1,
+        "Mid": 3,
+        "Senior": 5
+    }
+
     # Check if interview data exists
     if not interview_data or not questions:
         messages.error(request, 'No active interview. Please start a new interview.')
         return redirect('dashboard')
-    
+
     if request.method == 'POST':
+        result_id = request.POST.get('result_id', '')
         audio_blob = request.POST.get('audio_blob', '')
-        # Check for uploaded multipart files (preferred over base64 in POST body)
         uploaded_files = request.FILES if hasattr(request, 'FILES') else {}
         uploaded_main_audio = uploaded_files.get('audio_file') if uploaded_files else None
         webcam_frames = request.POST.get('webcam_frames', '[]')
@@ -202,359 +231,136 @@ def interview_run_view(request):
         voice_transcripts = request.session.get('voice_transcripts', [])
         interaction_feedbacks = request.session.get('interaction_feedbacks', [])
 
-        from .gemini_utils import analyze_voice_data
+        # Convert experience to numeric value
+        experience_str = interview_data.get('experience', '0')
+        experience = experience_mapping.get(experience_str, 0)
 
-        # Capture per-question audio (store each question's audio in session)
+        # Capture per-question audio
         if audio_blob and idx < len(questions):
             question_audios[str(idx)] = audio_blob
             request.session['question_audios'] = question_audios
 
-        # Fast path: just transcribe audio, defer analysis to final feedback
+        # Transcribe audio if provided
+        transcript = ""
         if audio_blob or uploaded_main_audio:
             try:
                 if uploaded_main_audio:
-                    # uploaded_main_audio is an InMemoryUploadedFile or TemporaryUploadedFile
                     audio_bytes = uploaded_main_audio.read()
                 else:
                     audio_bytes = base64.b64decode(audio_blob.split(',')[1])
-                # Use Google Speech-to-Text API for audio transcription
+
+                # Try Whisper first
                 try:
-                    from google.cloud import speech
-                    client = speech.SpeechClient()
-                    audio = speech.RecognitionAudio(content=audio_bytes)
-                    config = speech.RecognitionConfig(
-                        encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
-                        sample_rate_hertz=48000,
-                        language_code="en-US",
-                    )
-                    response = client.recognize(config=config, audio=audio)
-                    transcript = " ".join([result.alternatives[0].transcript for result in response.results])
-                except Exception as import_error:
-                    # Detailed logging and fallback chain
-                    print(f"Google Speech-to-Text unavailable or failed: {import_error}")
-                    transcript = None
-                    # Try local Whisper model as a fallback (if installed). Whisper typically
-                    # requires ffmpeg to read some container formats (webm). This is optional
-                    # and will be attempted only if the package is installed.
+                    import whisper
+                    import tempfile, os
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as tf:
+                        tf.write(audio_bytes)
+                        temp_name = tf.name
                     try:
-                        import whisper
-                        import tempfile, os
-                        # write bytes to temporary file
-                        with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as tf:
-                            tf.write(audio_bytes)
-                            temp_name = tf.name
+                        model = whisper.load_model('base')
+                        wres = model.transcribe(temp_name)
+                        transcript = (wres.get('text') or '').strip()
+                    finally:
                         try:
-                            model = whisper.load_model('small')
-                            wres = model.transcribe(temp_name)
-                            transcript = (wres.get('text') or '').strip()
-                        finally:
-                            try:
-                                os.unlink(temp_name)
-                            except Exception:
-                                pass
-                    except Exception as we:
-                        # Whisper fallback failed or not available
-                        print(f"Whisper fallback unavailable or failed: {we}")
-                        transcript = None
+                            os.remove(temp_name)
+                        except OSError:
+                            pass
+                except Exception as e:
+                    print(f"Whisper transcription failed: {e}")
+                    transcript = "[Audio transcription failed]"
 
-                    if not transcript:
-                        # Final fallback: use provided text answer if available
-                        transcript = answer if answer else "Audio received but transcription unavailable."
-                
-                voice_transcripts.append({
-                    'transcript': transcript,
-                    'timestamp': time.time()
-                })
-                answer = transcript
             except Exception as e:
-                voice_transcripts.append({'transcript': "Transcription failed.", 'timestamp': time.time()})
-                answer = "Audio submission recorded"
                 print(f"Audio transcription error: {e}")
+                transcript = "[Audio transcription failed]"
 
-        # Store webcam frames for final analysis (skip per-frame analysis for speed)
-        if webcam_frames:
-            try:
-                frames = json.loads(webcam_frames)
-                # Store only first and last frame to reduce processing
-                if len(frames) > 2:
-                    interaction_feedbacks.append({
-                        'frame_count': len(frames),
-                        'first_frame': frames[0],
-                        'last_frame': frames[-1]
-                    })
-                else:
-                    interaction_feedbacks.append({
-                        'frame_count': len(frames),
-                        'frames': frames
-                    })
-            except Exception as e:
-                print(f"Webcam frames storage error: {e}")
+        # Store the transcript and answer
+        if idx < len(questions):
+            voice_transcripts.append(transcript)
+            answers.append(answer)
+            request.session['voice_transcripts'] = voice_transcripts
+            request.session['interview_answers'] = answers
 
-        # Store answer without per-question analysis (defer to final feedback)
-        current_question = questions[idx]
-        answers.append({
-            'text': answer,
-            'question': current_question
-        })
-        request.session['interview_answers'] = answers
-        request.session['voice_transcripts'] = voice_transcripts
-        request.session['interaction_feedbacks'] = interaction_feedbacks
-        idx += 1
-        request.session['current_question_idx'] = idx
-        if idx >= len(questions):
-            # Generate AI feedback ONCE at the end (not per-question)
-            interview_type = interview_data.get('interview_type', 'mixed')
-            
-            # Merge transcripts from upload-clip endpoint (if available) with answers
-            # This ensures we use the real transcriptions instead of fallback text
-            question_transcripts = request.session.get('question_transcripts', {})
-            merged_answers = []
-            for i, ans in enumerate(answers):
-                if str(i) in question_transcripts:
-                    # Use uploaded transcription if available
-                    merged_answers.append({
-                        'text': question_transcripts[str(i)],
-                        'question': ans['question'],
-                        'source': 'transcription'
-                    })
-                else:
-                    # Use fallback answer text
-                    merged_answers.append({
-                        'text': ans['text'],
-                        'question': ans['question'],
-                        'source': 'fallback'
-                    })
-            
-            # Build efficient feedback prompt (no per-question analysis calls)
+        # Check if this is the final submission
+        if result_id == 'final_submit' or idx + 1 >= len(questions):
+            # Generate AI feedback
             questions_answers = []
-            for i, (q, a) in enumerate(zip(questions, merged_answers), 1):
-                questions_answers.append(f"{i}. Q: {q}\n   A: {a['text']}")
-            
-            qa_text = "\n".join(questions_answers)
-            
-            # Use fast_model for final feedback generation
-            from .gemini_utils import fast_model
-            
-            feedback_prompt = f"""You are a professional interview evaluator. Analyze the following interview response comprehensively and provide structured feedback.
-
-INTERVIEW DETAILS:
-- Position Applied: {interview_data['role']}
-- Candidate Experience: {interview_data['experience']} years
-- Interview Type: {interview_type.upper()}
-- Mode: {mode.upper()}
-
-CANDIDATE RESPONSES:
-{qa_text}
-
-INSTRUCTIONS:
-1. Evaluate each response on depth, accuracy, clarity, and relevance
-2. Identify key strengths and areas needing improvement
-3. Provide actionable, professional suggestions
-4. Score each answer from 0-100 based on relevance and quality
-5. Return ONLY valid JSON with no markdown formatting or extra text
-
-Return this exact JSON structure:
-{{
-  "overall_score": <integer 0-100>,
-  "grade_label": "<A|B|C|D|F>",
-  "summary": "<Professional 2-3 sentence summary of overall performance>",
-  "strengths": [
-    "<Specific strength 1>",
-    "<Specific strength 2>",
-    "<Specific strength 3>"
-  ],
-  "weaknesses": [
-    "<Area for improvement 1>",
-    "<Area for improvement 2>",
-    "<Area for improvement 3>"
-  ],
-  "suggestions": [
-    "<Actionable suggestion 1>",
-    "<Actionable suggestion 2>",
-    "<Actionable suggestion 3>"
-  ],
-  "questions": [
-    {{
-      "id": "1",
-      "question": "<Full question text>",
-      "answer": "<Candidate's answer>",
-      "score": <0-100>,
-      "feedback": "<Professional feedback on this answer>"
-    }}
-  ]
-}}"""
-            
-            # Build a professional default feedback structure (fallback)
-            default_questions_feedback = []
-            for i, (q, a) in enumerate(zip(questions, answers), 1):
-                default_questions_feedback.append({
-                    "id": str(i),
-                    "question": q,
-                    "answer": a['text'][:200],
-                    "score": 65,
-                    "feedback": "Response was adequate. For improvement, consider adding more specific examples and demonstrating deeper technical knowledge."
+            for i, q in enumerate(questions):
+                ans = answers[i] if i < len(answers) else ""
+                trans = voice_transcripts[i] if i < len(voice_transcripts) else ""
+                final_answer = trans if trans and trans != "[Audio transcription failed]" else ans
+                questions_answers.append({
+                    'question': q,
+                    'answer': final_answer
                 })
-            
-            ai_feedback = json.dumps({
-                "overall_score": 65,
-                "grade_label": "C",
-                "summary": f"Interview assessment for {interview_data['role']} position. Candidate demonstrated foundational knowledge with room for improvement in technical depth and communication clarity.",
-                "strengths": [
-                    "Participated fully in the interview",
-                    "Provided responses to all questions",
-                    "Demonstrated willingness to engage with technical topics"
-                ],
-                "weaknesses": [
-                    "Limited specific examples and case studies in responses",
-                    "Could improve depth of technical knowledge",
-                    "More structured communication would enhance responses"
-                ],
-                "suggestions": [
-                    "Prepare specific project examples demonstrating your expertise",
-                    "Study core concepts relevant to the {interview_data['role']} role",
-                    "Practice articulating technical concepts clearly and concisely"
-                ],
-                "questions": default_questions_feedback
-            })
-            
+
             try:
-                if fast_model:
-                    # Optimized generation config for professional feedback
-                    response = fast_model.generate_content(
-                        feedback_prompt,
-                        generation_config={
-                            'temperature': 0.7,
-                            'max_output_tokens': 3000,
-                            'top_p': 0.95,
-                            'top_k': 40
-                        }
-                    )
-                    feedback_text = response.text.strip()
-                    
-                    # Extract JSON (handle markdown code blocks)
-                    if '```json' in feedback_text:
-                        feedback_text = feedback_text.split('```json')[1].split('```')[0].strip()
-                    elif '```' in feedback_text:
-                        feedback_text = feedback_text.split('```')[1].split('```')[0].strip()
-                    
-                    try:
-                        parsed_feedback = json.loads(feedback_text)
-                        ai_feedback = json.dumps(parsed_feedback)
-                    except json.JSONDecodeError as je:
-                        print(f"JSON parse error: {str(je)[:100]}")
-                        ai_feedback = json.dumps({
-                            "overall_score": 60,
-                            "grade_label": "Fair",
-                            "summary": "Interview completed with analysis.",
-                            "strengths": ["Completed interview successfully"],
-                            "weaknesses": ["Detailed feedback parsing failed"],
-                            "suggestions": ["Review feedback format"],
-                            "questions": []
-                        })
+                # Use static feedback instead of AI generation
+                feedback_data = {
+                    "overall_score": 75,
+                    "grade_label": "B",
+                    "summary": "Interview completed successfully. You demonstrated good communication skills and provided thoughtful responses.",
+                    "strengths": ["Clear communication", "Relevant examples provided", "Good problem-solving approach"],
+                    "weaknesses": ["Could elaborate more on technical details", "Some responses could be more concise"],
+                    "suggestions": ["Practice explaining technical concepts in simpler terms", "Focus on quantifying achievements"],
+                    "questions": questions_answers
+                }
+                ai_feedback_json = json.dumps(feedback_data)
             except Exception as e:
-                print(f"Feedback generation error: {str(e)[:100]}")
-                ai_feedback = json.dumps({
-                    "overall_score": 55,
-                    "grade_label": "Fair",
-                    "summary": "Interview completed.",
-                    "strengths": ["Completed interview"],
-                    "weaknesses": ["Feedback generation error"],
-                    "suggestions": ["Try again"],
+                print(f"Error generating feedback: {e}")
+                feedback_data = {
+                    "overall_score": 70,
+                    "grade_label": "C",
+                    "summary": "Feedback generation encountered an error. Please review your responses manually.",
+                    "strengths": ["Completed the interview"],
+                    "weaknesses": ["Technical issues during feedback generation"],
+                    "suggestions": ["Retry the interview if possible"],
                     "questions": []
-                })
-            
-            # Store interaction feedback metadata (not detailed frame analysis)
-            interaction_feedback_str = json.dumps({
-                'frame_analysis': interaction_feedbacks,
-                'voice_transcripts': voice_transcripts
-            })
-            
-            from feedback.models import InterviewResult
+                }
+                ai_feedback_json = json.dumps(feedback_data)
 
+            # Save InterviewResult
             result = InterviewResult.objects.create(
                 user=request.user,
-                name=interview_data['name'],
-                role=interview_data['role'],
-                experience=int(interview_data['experience']),
-                interview_type=interview_type,
+                name=interview_data.get('name', ''),
+                role=interview_data.get('role', ''),
+                experience=experience,
+                interview_type=interview_data.get('interview_type', 'mixed'),
                 mode=mode,
                 webcam_enabled=webcam_enabled,
                 questions=questions,
                 answers=answers,
                 voice_transcripts=voice_transcripts,
-                interaction_feedback=interaction_feedback_str,
-                ai_feedback=ai_feedback
+                ai_feedback=ai_feedback_json,
+                overall_score=feedback_data.get('overall_score'),
+                grade_label=feedback_data.get('grade_label')
             )
 
+            # Clear session data
+            keys_to_clear = [
+                'interview_questions', 'current_question_idx', 'interview_answers',
+                'voice_transcripts', 'interaction_feedbacks', 'interview_data',
+                'question_audios', 'question_transcripts', 'question_audio_clips'
+            ]
+            for key in keys_to_clear:
+                request.session.pop(key, None)
 
+            messages.success(request, 'Interview completed! View your feedback below.')
+            return redirect('result_detail', pk=result.pk)
 
-
-
-            # Attempt to parse AI feedback and compute a human-friendly grade using feedback_utils
-            try:
-                from users.feedback_utils import render_feedback_context, compute_grade_label
-                parsed = render_feedback_context(ai_feedback)
-                raw_score = parsed.get('overall_score', 0) or 0
-                try:
-                    raw_score_int = int(raw_score)
-                except Exception:
-                    raw_score_int = 0
-                # If the model returned a 1-10 scale, rescale to 0-100
-                if 0 <= raw_score_int <= 10:
-                    scaled_score = raw_score_int * 10
-                else:
-                    scaled_score = raw_score_int
-                grade_label = parsed.get('grade_label') or compute_grade_label(scaled_score)
-            except Exception as e:
-                print(f"Feedback parsing error: {e}")
-                scaled_score = None
-                grade_label = 'Unrated'
-
-            # Save parsed score/label to the InterviewResult
-            try:
-                if scaled_score is not None:
-                    result.overall_score = int(scaled_score)
-                result.grade_label = grade_label
-                result.save()
-            except Exception as e:
-                print(f"Error saving score/label to InterviewResult: {e}")
-
-            # Inform the user and redirect to the feedback (detail) page
-            if scaled_score is not None:
-                messages.success(request, f'Interview completed — Score: {scaled_score} ({grade_label}). Results saved.')
-            else:
-                messages.success(request, 'Interview completed! Results saved. (Score unavailable)')
-
-            # clear session data for the interview
-            del request.session['interview_questions']
-            del request.session['current_question_idx']
-            del request.session['interview_answers']
-            del request.session['voice_transcripts']
-            del request.session['interaction_feedbacks']
-            del request.session['interview_data']
-            if 'question_audios' in request.session:
-                del request.session['question_audios']
-
-            # Redirect to the per-interview feedback/detail page
-            return redirect('result_detail', pk=result.id)
+        # Move to the next question
+        request.session['current_question_idx'] = idx + 1
         return redirect('interview_run')
-    if not questions or idx >= len(questions):
-        return redirect('dashboard')
-    
-    question = questions[idx]
-    pure_voice = interview_data.get('pure_voice', False)
-    
-    # Ensure all required context is available
-    context = {
-        'question': question,
-        'current_idx': idx,
-        'total': len(questions),
+
+    return render(request, 'interview_run.html', {
+        'questions': questions,
+        'question': questions[idx] if idx < len(questions) else None,
+        'answers': answers,
         'mode': mode,
         'webcam_enabled': webcam_enabled,
-        'pure_voice': pure_voice
-    }
-    
-    return render(request, 'interview_run.html', context)
+        'total': len(questions),
+        'current_idx': idx,
+        'interview_data': interview_data
+    })
 
 @login_required
 def results_view(request):
@@ -562,152 +368,104 @@ def results_view(request):
     results = InterviewResult.objects.filter(user=request.user).order_by('-created_at')
     return render(request, 'results.html', {'results': results})
 
-
 @login_required
 def result_detail_view(request, pk):
-    """Show detailed feedback for a single InterviewResult.
-
-    Staff users may view any result; regular users only their own results.
-    """
+    """Show detailed feedback for a single InterviewResult."""
     from feedback.models import InterviewResult
-    from users.feedback_utils import render_feedback_context
+    import json
 
     try:
         result = InterviewResult.objects.get(pk=pk, user=request.user)
     except InterviewResult.DoesNotExist:
-        # allow staff to view any result
         if request.user.is_staff:
             result = get_object_or_404(InterviewResult, pk=pk)
         else:
             messages.error(request, 'Requested feedback not found.')
             return redirect('results')
 
-    parsed = render_feedback_context(result.ai_feedback)
+    # Parse AI feedback JSON
+    feedback = None
+    if result.ai_feedback:
+        try:
+            feedback = json.loads(result.ai_feedback)
+        except json.JSONDecodeError:
+            feedback = {'error': 'Failed to parse feedback data'}
 
     context = {
         'result': result,
-        'feedback': parsed,
+        'feedback': feedback,
     }
     return render(request, 'result_detail.html', context)
 
-
 @login_required
 def upload_question_clip(request):
-    """
-    Accept per-question audio clip immediately after candidate answers a question.
-    
-    Expected multipart POST with:
-    - question_idx: integer index of the question (0-based)
-    - audio_file: binary audio blob
-    
-    Transcribe immediately and return JSON with transcription status.
-    """
+    """Accept per-question audio clip."""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
-    
+
     try:
         question_idx = int(request.POST.get('question_idx', -1))
         audio_file = request.FILES.get('audio_file')
-        
+
         if not audio_file or question_idx < 0:
             return JsonResponse({'error': 'Missing audio_file or question_idx'}, status=400)
-        
+
         # Read audio bytes
         audio_bytes = audio_file.read()
-        
-        # Store clip in session for later save (when interview completes)
+
+        # Store clip in session
         if 'question_audio_clips' not in request.session:
             request.session['question_audio_clips'] = {}
-        
-        # Store file object for later use (we'll save it in interview_run_view at completion)
+
         request.session['question_audio_clips'][str(question_idx)] = {
             'filename': audio_file.name,
             'content_type': audio_file.content_type
         }
-        
-        # Attempt transcription immediately
+
+        # Attempt transcription
         transcript = "Audio received"
         try:
-            # Try Whisper first (local, no authentication required)
-            transcript = None
+            import whisper
+            import tempfile, os
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as tf:
+                tf.write(audio_bytes)
+                temp_name = tf.name
+
             try:
-                import whisper
-                import tempfile
-                import os
-                
-                # Write audio bytes to temporary file
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as tf:
-                    tf.write(audio_bytes)
-                    temp_name = tf.name
-                
+                model = whisper.load_model('base')
+                result_whisper = model.transcribe(temp_name, language='en')
+                transcript = (result_whisper.get('text') or '').strip()
+            finally:
                 try:
-                    print(f"Loading Whisper model for Q{question_idx+1}...")
-                    model = whisper.load_model('base')  # Use 'base' for faster inference
-                    print(f"Transcribing Q{question_idx+1} audio...")
-                    result_whisper = model.transcribe(temp_name, language='en')
-                    transcript = (result_whisper.get('text') or '').strip()
-                    print(f"Q{question_idx+1} Whisper transcription: {transcript[:100]}...")
-                finally:
-                    try:
-                        os.unlink(temp_name)
-                    except:
-                        pass
-            except Exception as whisper_err:
-                print(f"Q{question_idx+1} Whisper transcription failed: {whisper_err}")
-                
-                # Fallback: Try Google Cloud Speech-to-Text
-                if not transcript:
-                    try:
-                        from google.cloud import speech
-                        print(f"Attempting Google STT for Q{question_idx+1}...")
-                        client = speech.SpeechClient()
-                        audio = speech.RecognitionAudio(content=audio_bytes)
-                        config = speech.RecognitionConfig(
-                            encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
-                            sample_rate_hertz=48000,
-                            language_code="en-US",
-                        )
-                        response = client.recognize(config=config, audio=audio)
-                        transcript = " ".join([result.alternatives[0].transcript for result in response.results])
-                        print(f"Q{question_idx+1} Google STT transcription: {transcript[:100]}...")
-                    except Exception as goog_err:
-                        print(f"Q{question_idx+1} Google STT failed: {goog_err}")
-            
-            # Final fallback if both failed
-            if not transcript:
-                print(f"Q{question_idx+1}: Using fallback placeholder transcription")
-                transcript = "Audio received but automatic transcription unavailable. Please provide text answer."
+                    os.unlink(temp_name)
+                except:
+                    pass
         except Exception as e:
-            print(f"Q{question_idx+1} Transcription error (outer): {e}")
+            print(f"Whisper transcription failed: {e}")
             transcript = "Audio received but transcription failed."
-        
+
         # Store transcription in session
         if 'question_transcripts' not in request.session:
             request.session['question_transcripts'] = {}
         request.session['question_transcripts'][str(question_idx)] = transcript
         request.session.modified = True
-        
+
         return JsonResponse({
             'success': True,
             'question_idx': question_idx,
             'transcript': transcript
         })
-    
+
     except Exception as e:
         print(f"upload_question_clip error: {e}")
         return JsonResponse({'error': str(e)}, status=500)
 
-
-
 @login_required
 def download_interview_media(request, pk, kind):
-    """Protected media download: only staff (admin) can download stored audio/video files.
-
-    kind: 'audio' or 'frames'
-    """
+    """Protected media download."""
     from feedback.models import InterviewResult
     result = get_object_or_404(InterviewResult, pk=pk)
-    # Only admins (staff) may access media
     if not request.user.is_staff:
         raise Http404()
 
@@ -716,8 +474,6 @@ def download_interview_media(request, pk, kind):
     if kind == 'frames' and result.video_frames_zip:
         return FileResponse(result.video_frames_zip.open('rb'), as_attachment=True, filename=result.video_frames_zip.name.split('/')[-1])
     raise Http404()
-
-from django.http import JsonResponse
 
 def stats_view(request):
     from feedback.models import InterviewResult
@@ -738,3 +494,224 @@ def feature_feedback(request):
 
 def feature_tips(request):
     return render(request, 'feature_tips.html')
+
+def start_interview(request):
+    if request.method == 'POST':
+        role = request.POST.get('role')
+        experience_level = request.POST.get('experience_level')
+        number_of_questions = int(request.POST.get('number_of_questions', 5))
+
+        try:
+            questions = generate_fallback_questions(role, experience_level, 'mixed')  # Use static questions
+            request.session['interview_questions'] = questions
+            request.session['current_question_idx'] = 0
+
+            return render(request, 'interview_run.html', {
+                'question': questions[0] if questions else "No questions generated.",
+                'total': len(questions),
+                'current_idx': 0,
+                'webcam_enabled': False
+            })
+        except Exception as e:
+            print(f"Error during question generation: {e}")
+            return render(request, 'interview_run.html', {
+                'question': "An error occurred while generating questions. Please try again later.",
+                'total': 0,
+                'current_idx': 0,
+                'webcam_enabled': False
+            })
+
+    return render(request, 'interview_run.html')
+
+def complete_interview(request):
+    if request.method == 'POST':
+        return render(request, 'feedback.html')
+
+def generate_feedback_view(request):
+    if request.method == 'POST':
+        role = request.POST.get('role')
+        questions = request.POST.getlist('questions')
+        candidate_answers = request.POST.getlist('candidate_answers')
+
+        feedback = generate_feedback(role, questions, candidate_answers)
+        return JsonResponse({"feedback": feedback})
+
+    return JsonResponse({"error": "Invalid request method."}, status=400)
+
+
+def generate_interview_questions(role, experience, interview_type):
+    """Generate interview questions using Mistral AI with fallback."""
+    try:
+        mistral_service = get_mistral_service()
+        questions = mistral_service.generate_questions(role, experience, interview_type)
+        if questions and len(questions) >= 5:
+            return questions
+        else:
+            return generate_fallback_questions(role, experience, interview_type)
+    except Exception as e:
+        print(f"Error generating questions: {e}")
+        return generate_fallback_questions(role, experience, interview_type)
+
+
+def generate_fallback_questions(role, experience, interview_type):
+    """Generate fallback questions based on role, experience, and type."""
+    
+    # Fresher/Junior level questions
+    fresher_technical = [
+        f"Can you explain the basic concepts of {role} that you've learned?",
+        "What programming languages are you familiar with and why?",
+        "Can you walk us through a simple project you've built?",
+        "How do you approach learning new technologies?",
+        "What are the fundamentals you consider important in this field?"
+    ]
+    
+    fresher_behavioral = [
+        "Tell us about yourself and your background.",
+        "What motivated you to pursue a career in {role}?",
+        "Describe a time when you learned something new quickly.",
+        "How do you handle feedback or criticism?",
+        "Why are you interested in this position?"
+    ]
+    
+    fresher_mixed = [
+        f"Can you tell us about your interest in becoming a {role}?",
+        "What are the key skills you've developed so far?",
+        "Describe a project or assignment you worked on in college/learning.",
+        "How do you approach problem-solving?",
+        "Where do you see yourself in your career in the next 2-3 years?"
+    ]
+    
+    # Mid-level questions
+    mid_technical = [
+        f"Can you explain your experience with {role}-related technologies?",
+        "Describe a challenging technical problem you've solved.",
+        "How do you stay updated with the latest developments in your field?",
+        "What tools and frameworks are you proficient in for this role?",
+        "How would you approach debugging a complex issue?"
+    ]
+    
+    mid_behavioral = [
+        "Tell me about a time you worked in a team to achieve a goal.",
+        "Describe a situation where you had to learn something new quickly.",
+        "How do you handle constructive criticism?",
+        "Give an example of how you've handled a difficult stakeholder.",
+        "What motivates you in your work?"
+    ]
+    
+    mid_mixed = [
+        f"What are your key strengths as a {role}?",
+        "Describe your experience level and how it aligns with this role.",
+        "How do you approach complex problem-solving in your work?",
+        "Tell me about a significant project you're proud of and why.",
+        "How do you balance technical depth with broader business understanding?"
+    ]
+    
+    # Senior-level questions
+    senior_technical = [
+        f"How have you architected solutions as a {role}?",
+        "Describe your approach to designing scalable systems.",
+        "How do you mentor junior developers in technical skills?",
+        "What's your philosophy on code quality and technical debt?",
+        "How do you stay ahead of industry trends and emerging technologies?"
+    ]
+    
+    senior_behavioral = [
+        "Tell me about your leadership experience and approach.",
+        "Describe a situation where you drove significant change.",
+        "How do you balance technical and people management?",
+        "Give an example of how you've influenced organization-wide decisions.",
+        "What's your approach to building and maintaining high-performing teams?"
+    ]
+    
+    senior_mixed = [
+        f"How have you grown as a {role} over your career?",
+        "Describe your approach to strategic technical decisions.",
+        "How do you contribute to company vision and strategy?",
+        "Tell me about your most significant impact on a project.",
+        "Where do you want to take your career in the next 5 years?"
+    ]
+    
+    # Determine experience level
+    if experience <= 1:
+        if interview_type == 'technical':
+            questions = fresher_technical
+        elif interview_type == 'behavioral':
+            questions = fresher_behavioral
+        else:  # mixed
+            questions = fresher_mixed
+    elif experience <= 3:
+        if interview_type == 'technical':
+            questions = mid_technical
+        elif interview_type == 'behavioral':
+            questions = mid_behavioral
+        else:  # mixed
+            questions = mid_mixed
+    else:  # Senior (experience > 3)
+        if interview_type == 'technical':
+            questions = senior_technical
+        elif interview_type == 'behavioral':
+            questions = senior_behavioral
+        else:  # mixed
+            questions = senior_mixed
+    
+    # Customize questions with role
+    customized_questions = []
+    for q in questions:
+        customized_questions.append(q.replace("{role}", role))
+    
+    return customized_questions
+
+
+def generate_ai_feedback(questions_answers, role, experience, interview_type):
+    """Generate AI feedback using Mistral AI."""
+    try:
+        mistral_service = get_mistral_service()
+        questions = [qa['question'] for qa in questions_answers]
+        candidate_answers = [qa['answer'] for qa in questions_answers]
+        feedback = mistral_service.generate_feedback(role, interview_type, questions, candidate_answers)
+        return json.dumps(feedback)
+    except Exception as e:
+        print(f"Error generating feedback: {e}")
+        return json.dumps({
+            "overall_score": 70,
+            "grade_label": "C",
+            "summary": "Feedback generation failed.",
+            "strengths": [],
+            "weaknesses": [],
+            "suggestions": [],
+            "questions": []
+        })
+
+
+class InterviewStartAPIView(APIView):
+    def post(self, request):
+        serializer = InterviewStartSerializer(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            questions = generate_interview_questions(
+                data['role'], data['experience'], data['interview_type']
+            )
+            response_serializer = InterviewStartResponseSerializer({
+                'candidate_name': 'Candidate',  # Placeholder
+                'role': data['role'],
+                'experience': data['experience'],
+                'interview_type': data['interview_type'],
+                'questions': questions
+            })
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class InterviewFeedbackAPIView(APIView):
+    def post(self, request):
+        serializer = InterviewFeedbackSerializer(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            feedback = generate_ai_feedback(
+                [{'question': q, 'answer': a} for q, a in zip(data['questions'], data['candidate_answers'])],
+                data['role'], 3, data['interview_type']  # Default experience
+            )
+            feedback_data = json.loads(feedback)
+            response_serializer = InterviewFeedbackResponseSerializer(feedback_data)
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

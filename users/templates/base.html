@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{% static 'style.css' %}">
 </head>
 <body>
+  {% block navbar %}
   <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-2">
     <div class="container">
       <a class="navbar-brand d-flex align-items-center" href="/">
@@ -81,6 +82,7 @@
       </div>
     </div>
   </nav>
+  {% endblock %}
   <main style="padding-top: 70px;">
     {% block content %}{% endblock %}
   </main>

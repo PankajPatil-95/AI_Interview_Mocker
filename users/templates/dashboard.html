@@ -54,19 +54,24 @@
               <label for="interviewRole" class="form-label fw-semibold"><i class="bi bi-briefcase-fill me-2 text-primary"></i>Role/Position</label>
               <select class="form-select" id="interviewRole" name="role" required>
                 <option value="">Select role</option>
-                <option {% if profile and profile.role == 'Backend Engineer' %}selected{% endif %}>Backend Engineer</option>
-                <option {% if profile and profile.role == 'Frontend Engineer' %}selected{% endif %}>Frontend Engineer</option>
-                <option {% if profile and profile.role == 'Full Stack Engineer' %}selected{% endif %}>Full Stack Engineer</option>
-                <option {% if profile and profile.role == 'Data Scientist' %}selected{% endif %}>Data Scientist</option>
-                <option {% if profile and profile.role == 'DevOps Engineer' %}selected{% endif %}>DevOps Engineer</option>
-                <option {% if profile and profile.role == 'QA / SDET' %}selected{% endif %}>QA / SDET</option>
-                <option {% if profile and profile.role == 'Product Manager' %}selected{% endif %}>Product Manager</option>
-                <option {% if profile and profile.role == 'Other' %}selected{% endif %}>Other</option>
+                <option value="Backend Engineer" {% if profile and profile.role == 'Backend Engineer' %}selected{% endif %}>Backend Engineer</option>
+                <option value="Frontend Engineer" {% if profile and profile.role == 'Frontend Engineer' %}selected{% endif %}>Frontend Engineer</option>
+                <option value="Full Stack Engineer" {% if profile and profile.role == 'Full Stack Engineer' %}selected{% endif %}>Full Stack Engineer</option>
+                <option value="Data Scientist" {% if profile and profile.role == 'Data Scientist' %}selected{% endif %}>Data Scientist</option>
+                <option value="DevOps Engineer" {% if profile and profile.role == 'DevOps Engineer' %}selected{% endif %}>DevOps Engineer</option>
+                <option value="QA / SDET" {% if profile and profile.role == 'QA / SDET' %}selected{% endif %}>QA / SDET</option>
+                <option value="Product Manager" {% if profile and profile.role == 'Product Manager' %}selected{% endif %}>Product Manager</option>
+                <option value="Other" {% if profile and profile.role == 'Other' %}selected{% endif %}>Other</option>
               </select>
             </div>
             <div class="mb-3">
-              <label for="interviewExp" class="form-label fw-semibold"><i class="bi bi-clock-fill me-2 text-primary"></i>Experience (years)</label>
-              <input type="number" class="form-control" id="interviewExp" name="experience" value="{{ profile.years_experience|default:'' }}" min="0" max="50" required>
+              <label for="interviewExp" class="form-label fw-semibold"><i class="bi bi-clock-fill me-2 text-primary"></i>Experience Level</label>
+              <select class="form-select" id="interviewExp" name="experience" required>
+                <option value="">Select experience level</option>
+                <option value="Fresher">Fresher</option>
+                <option value="Mid">Mid</option>
+                <option value="Senior">Senior</option>
+              </select>
             </div>
             <div class="mb-3">
               <label for="interviewType" class="form-label fw-semibold"><i class="bi bi-tags-fill me-2 text-primary"></i>Interview Type</label>
@@ -77,14 +82,7 @@
                 <option value="mixed">Mixed</option>
               </select>
             </div>
-            <div class="mb-3">
-              <label for="interviewMode" class="form-label fw-semibold"><i class="bi bi-chat-dots-fill me-2 text-primary"></i>Interview Mode</label>
-              <select class="form-select" id="interviewMode" name="mode" required>
-                <option value="">Select mode</option>
-                <option value="text">Text</option>
-                <option value="voice">Voice</option>
-              </select>
-            </div>
+            <input type="hidden" name="mode" value="voice">
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -102,12 +100,41 @@
           <ul class="list-group list-group-flush">
             {% for interview in recent_activity %}
             <li class="list-group-item">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <strong>{{ interview.role }}</strong> - {{ interview.interview_type|title }} Interview<br>
-                  <small class="text-muted">{{ interview.created_at|date:"M d, Y H:i" }}</small>
+              <div class="d-flex justify-content-between align-items-start">
+                <div class="me-3" style="flex:1; min-width:0;">
+                  <div class="d-flex align-items-baseline">
+                    <strong class="me-2">{{ interview.role|default:'Candidate' }}</strong>
+                    <small class="text-muted">&middot; {{ interview.interview_type|default:'behavioral'|title }} Interview</small>
+                  </div>
+                  <div class="text-muted small">{{ interview.created_at|date:"M d, Y H:i" }}</div>
+
+                  {% comment %} Compact feedback preview: overall score and short summary {% endcomment %}
+                  <div class="mt-2 d-flex align-items-center">
+                    {% if interview.overall_score %}
+                      <span class="badge bg-success me-2">Score: {{ interview.overall_score }}%</span>
+                    {% elif interview.grade_label %}
+                      <span class="badge bg-info text-dark me-2">{{ interview.grade_label }}</span>
+                    {% else %}
+                      <span class="badge bg-secondary me-2">No score</span>
+                    {% endif %}
+
+                    <div class="text-truncate" style="max-width:520px;">
+                      {% if interview.summary %}
+                        {{ interview.summary|truncatechars:100 }}
+                      {% elif interview.overall_feedback %}
+                        {{ interview.overall_feedback|truncatechars:100 }}
+                      {% else %}
+                        <span class="text-muted">No feedback yet. View full results for details.</span>
+                      {% endif %}
+                    </div>
+                  </div>
                 </div>
-                <a href="/results" class="btn btn-sm btn-outline-primary">View</a>
+                <div class="text-end ms-3">
+                  <a href="/results/{{ interview.id }}" class="btn btn-sm btn-outline-primary mb-2">View</a>
+                  <div>
+                    <small class="text-muted">{{ interview.mode|default:'voice'|title }}</small>
+                  </div>
+                </div>
               </div>
             </li>
             {% empty %}

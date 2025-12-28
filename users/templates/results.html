@@ -2,53 +2,154 @@
 {% load custom_filters %}
 {% block title %}Interview Results{% endblock %}
 {% block content %}
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <h2 class="mb-4 text-primary fw-bold text-center">Your Interview Results</h2>
-            {% for result in results %}
-            <div class="card mb-4 shadow-sm">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">{{ result.role }} Interview - {{ result.created_at|date:"M d, Y" }}</h5>
-                </div>
-                <div class="card-body">
-                    <p><strong>Name:</strong> {{ result.name }}</p>
-                    <p><strong>Experience:</strong> {{ result.experience }} years</p>
-                    <p><strong>Interview Type:</strong> {{ result.interview_type|title }}</p>
-                    <p><strong>Mode:</strong> {{ result.mode|title }}</p>
-                    <p><strong>Webcam Enabled:</strong> {% if result.webcam_enabled %}Yes{% else %}No{% endif %}</p>
-                    <h6>Questions and Answers:</h6>
-                    <ul>
-                        {% for i in result.questions %}
-                        <li><strong>Q{{ forloop.counter }}:</strong> {{ i }}</li>
-                        <li><strong>A{{ forloop.counter }}:</strong> {{ result.answers|index:forloop.counter0 }}</li>
-                        {% endfor %}
-                    </ul>
-                    {% if result.voice_transcripts %}
-                    <h6>Voice Analysis:</h6>
-                    <div class="alert alert-info">
-                        <p><strong>Transcripts:</strong></p>
-                        <ul>
-                            {% for transcript in result.voice_transcripts %}
-                            <li>{{ transcript }}</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% endif %}
-                    {% if result.interaction_feedback %}
-                    <h6>Confidence Insights:</h6>
-                    <div class="alert alert-success">
-                        <p>{{ result.interaction_feedback|linebreaks }}</p>
-                    </div>
-                    {% endif %}
-                    <h6>Overall AI Feedback:</h6>
-                    <p>{{ result.ai_feedback|linebreaks }}</p>
-                </div>
-            </div>
-            {% empty %}
-            <p class="text-center">No interview results yet.</p>
-            {% endfor %}
-        </div>
+<div class="min-h-screen bg-gradient-to-b from-blue-50 to-indigo-50 py-12 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-5xl mx-auto">
+    
+    <!-- Page Header -->
+    <div class="mb-12 pb-8 border-b-2 border-blue-200">
+      <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-3">Your Interview Results</h1>
+      <p class="text-gray-600 text-lg">Track your progress and review detailed feedback from each interview</p>
     </div>
+
+    {% if results %}
+    <!-- Results Grid -->
+    <div class="space-y-6">
+      {% for result in results %}
+      <div class="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 border-t-4 border-blue-600">
+        
+        <!-- Result Card Header -->
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-8 py-6 border-b-2 border-blue-300">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            <div class="flex-1">
+              <h3 class="text-3xl font-bold text-gray-900 mb-2">{{ result.role }}</h3>
+              <p class="text-sm text-gray-600"><i class="bi bi-calendar3 me-2"></i>{{ result.created_at|date:"F d, Y \a\t H:i" }}</p>
+            </div>
+            <div class="text-center sm:text-right">
+              {% if result.overall_score %}
+              <div class="bg-white rounded-xl px-6 py-3 inline-block shadow-md border-2 border-blue-600">
+                <p class="text-4xl font-bold text-blue-600">{{ result.overall_score }}</p>
+                <p class="text-xs font-bold text-gray-600 uppercase tracking-widest mt-1">/100 Score</p>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Result Card Body -->
+        <div class="px-8 py-8">
+          <!-- Info Grid Section -->
+          <div class="mb-8">
+            <h4 class="text-sm font-bold text-gray-600 uppercase tracking-widest mb-4">Interview Details</h4>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-6 pb-6 border-b-2 border-gray-200">
+              <div class="flex flex-col">
+                <p class="text-gray-600 text-xs font-bold uppercase tracking-widest mb-2">Candidate Name</p>
+                <p class="text-lg font-bold text-gray-900">{{ result.name|default:"Ganesh Patil" }}</p>
+              </div>
+              <div class="flex flex-col">
+                <p class="text-gray-600 text-xs font-bold uppercase tracking-widest mb-2">Experience</p>
+                <p class="text-lg font-bold text-gray-900">
+                  {% with exp=result.experience|default:1 %}
+                    {% if exp == 0 %}
+                      Fresher
+                    {% else %}
+                      {{ exp }} year{% if exp != 1 %}s{% endif %}
+                    {% endif %}
+                  {% endwith %}
+                </p>
+              </div>
+              <div class="flex flex-col">
+                <p class="text-gray-600 text-xs font-bold uppercase tracking-widest mb-2">Interview Type</p>
+                <p class="text-lg font-bold text-gray-900">{{ result.interview_type|default:"Behavioral"|title }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Grade and Performance Section -->
+          {% if result.overall_score and result.grade_label %}
+          <div class="mb-8">
+            <h4 class="text-sm font-bold text-gray-600 uppercase tracking-widest mb-4">Performance Summary</h4>
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border-l-4 border-blue-600">
+              <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
+                <div>
+                  <p class="text-gray-600 text-xs font-bold uppercase tracking-widest mb-2">Grade</p>
+                  <p class="text-3xl font-bold text-blue-600">{{ result.grade_label }}</p>
+                </div>
+                <div>
+                  <p class="text-gray-600 text-xs font-bold uppercase tracking-widest mb-2">Performance</p>
+                  <div class="text-3xl">
+                    {% if result.overall_score >= 80 %}
+                      🌟
+                    {% elif result.overall_score >= 60 %}
+                      👍
+                    {% else %}
+                      📈
+                    {% endif %}
+                  </div>
+                </div>
+                <div>
+                  <p class="text-gray-600 text-xs font-bold uppercase tracking-widest mb-2">Score</p>
+                  <p class="text-3xl font-bold text-green-600">{{ result.overall_score }}/100</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Questions and Webcam Section -->
+          <div class="mb-6">
+            <h4 class="text-sm font-bold text-gray-600 uppercase tracking-widest mb-4">Session Information</h4>
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-6 pb-6 border-b-2 border-gray-200">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">❓</span>
+                <div>
+                  <p class="text-gray-600 text-xs font-bold uppercase tracking-widest">Questions Answered</p>
+                  <span class="bg-blue-100 text-blue-700 px-4 py-2 rounded-full font-bold text-lg inline-block mt-1">{{ result.questions|length }}</span>
+                </div>
+              </div>
+              {% if result.webcam_enabled %}
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">📹</span>
+                <div>
+                  <p class="text-gray-600 text-xs font-bold uppercase tracking-widest">Webcam Status</p>
+                  <span class="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-full font-bold text-lg inline-block mt-1">Enabled</span>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Call to Action -->
+          <div class="flex flex-col sm:flex-row gap-4 items-stretch">
+            <a href="{% url 'result_detail' result.id %}" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors text-center flex items-center justify-center gap-2">
+              <span>📊</span> View Detailed Feedback
+            </a>
+            <a href="{% url 'dashboard' %}" class="flex-1 bg-white border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-bold py-3 px-6 rounded-lg transition-colors text-center flex items-center justify-center gap-2">
+              <span>🔄</span> Practice Again
+            </a>
+          </div>
+
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-20 bg-white rounded-xl shadow-md border-2 border-dashed border-blue-300">
+      <div class="text-6xl mb-4">📊</div>
+      <h3 class="text-2xl font-bold text-gray-900 mb-2">No Interview Results Yet</h3>
+      <p class="text-gray-600 mb-8">Start your first mock interview to see results and detailed feedback here</p>
+      <a href="{% url 'dashboard' %}" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-colors shadow-md hover:shadow-lg">
+        + Start Your First Interview
+      </a>
+    </div>
+    {% endif %}
+
+    <!-- Footer Navigation -->
+    <div class="mt-12 pt-8 border-t-2 border-gray-300 text-center">
+      <a href="{% url 'dashboard' %}" class="text-blue-600 hover:text-blue-700 font-medium text-sm">← Back to Dashboard</a>
+    </div>
+
+  </div>
 </div>
 {% endblock %}
